@@ -8,11 +8,30 @@ os.environ['SDL_VIDEO_CENTERED'] = '1'
 
 class Trick():
     def __init__(self):
-        self.played = []
+        self.played = [None, None, None, None]
         self.suit = None
         
     def setSuit(self, suit):
         self.suit = suit
+    
+    def winner(self):
+        if len([card for card in self.played if card[-1] == 'A']) > 0:
+            trumps = [int(card[:-1]) for card in self.played if card[-1] == 'A']
+            winner = str(max(trumps)) + 'A'
+            index = self.played.index(winner)
+            self.played = [None, None, None, None]
+            return index
+        else:
+            suit_cards = [int(card[:-1]) for card in self.played if card[-1] == self.suit]
+            winner = str(max(suit_cards)) + self.suit
+            index = self.played.index(winner)
+            return index
+    
+    def play_card(self, card, index):
+        self.played[index] = card
+        if self.suit == None and card != '0E':
+            self.suit = card[-1]
+            
 
 class GameState():
     def __init__(self):
@@ -45,7 +64,6 @@ class GameState():
         self.current_player = self.previous_trick_winner
         self.total_scores = 4*[0]
         self.trick = Trick()
-        self.sprites = {}
         # x width on the sprite is 337 pixels and y height is 645 pixels
         # self.positions = {'0E': (5, 6), '14H': (3, 4), '13H': (3, 5), '12H': (2, 1), '11H': (3, 2), '10H': (3, 3), '9H': (2, 2), '8H': (2, 3), '7H': (2, 4), '6H': (2, 5), '5H': (10, 6), '4H': (9, 6), '3H': (8, 6), '2H': (7, 6), '1H': (6, 6), '14C': (3, 7), '13C': (2, 7), '12C': (1, 7), '11C': (5, 7), '10C': (4, 7), '9C': (10, 8), '8C': (9, 8), '7C': (8, 8), '6C': (7, 8), '5C': (6, 8), '4C': (5, 8), '3C': (4, 8), '2C': (3, 8), '1C': (2, 8), '14D': (2, 6), '13D': (1, 1), '12D': (1, 2), '11D': (4, 6), '10D': (3, 6), '9D': (1, 3), '8D': (1, 4), '7D': (1, 5), '6D': (1, 6), '5D': (10, 7), '4D': (9, 7), '3D': (8, 7), '2D': (7, 7), '1D': (6, 7), '14S': (4, 1), '13S': (4, 2), '12S': (4, 3), '11S': (5, 3), '10S': (5, 4), '9S': (4, 4), '8S': (10, 5), '7S': (9, 5), '6S': (8, 5), '5S': (7, 5), '4S': (6, 5), '3S': (5, 5), '2S': (4, 5), '1S': (3, 5), '1A': (5, 2), '2A': (5, 1), '3A': (6, 4), '4A': (7, 4), '5A': (8, 4), '6A': (9, 4), '7A': (10, 4), '8A': (6, 3), '9A': (6, 2), '10A': (6, 1), '11A': (7, 3), '12A': (7, 2), '13A': (7, 1), '14A': (8, 3), '15A': (9, 3), '16A': (10, 3), '17A': (8, 2), '18A': (8, 1), '19A': (9, 2), '20A': (9, 1), '21A': (10, 2)}
                     
@@ -80,7 +98,11 @@ class GameState():
             return player
         elif self.trick.suit == 'A':
             if len([card for card in player if card[-1] == 'A']) > 0:
-                return [card for card in player if card[-1] == 'A']
+                max_trump_played = max([int(card[:-1]) for card in self.trick.played if card != None and card[-1] == 'A'])
+                if len([card for card in player if card[-1] == 'A' and int(card[:-1])>max_trump_played]) > 0:
+                    return [card for card in player if card[-1] == 'A' and int(card[:-1])>max_trump_played]
+                else:
+                    return [card for card in player if card[-1] == 'A']
             else:
                 return player
         else:
@@ -94,22 +116,17 @@ class GameState():
             
         
     def update(self, card):
-        if played_card_position == None:
-            pass
-        else:
-            x = played_card_position[0]
-            y = played_card_position[1]
-            for card in self.allowedCards():
-                if self.sprites[card][0] <= x and x <= self.sprites[card][0] and self.sprites[card][1] <= y and y <= self.sprites[card][1] <= y:
-                    self.played_cards[self.current_player] = card
-            if self.current_player == 0:
-                for card in self.allowedCards()
-            elif self.current_player == 1:
-                pass
-            elif self.current_player == 2:
-                pass
-            elif self.current_player == 3:
-                pass
+        if len([card for card in self.trick.played if card != None]) == 4 and card == None:
+            self.previous_trick_winner = self.trick.winner()
+            self.trick = Trick()
+            self.played_cards = [None, None, None, None]
+            self.current_player = self.previous_trick_winner
+        if card in self.allowedCards():
+            self.players[self.current_player].remove(card)
+            self.played_cards[self.current_player] = card
+            self.trick.play_card(card, self.current_player)
+            self.current_player = (self.current_player + 1) % 4
+            
 
 class UserInterface():
     def __init__(self):
@@ -135,6 +152,7 @@ class UserInterface():
         pygame.display.set_caption("Discover Python & Patterns - https://www.patternsgameprog.com")
         pygame.display.set_icon(pygame.image.load("icon.png"))
         self.moveTankCommand = Vector2(0,0)
+        self.sprites = {}
 
         # Loop properties
         self.clock = pygame.time.Clock()
@@ -142,7 +160,7 @@ class UserInterface():
 
 
     def processInput(self):
-        self.moveTankCommand = Vector2(0,0)
+        self.played_card_position = None
         for event in pygame.event.get():
             if event.type == pygame.MOUSEBUTTONUP:
                 pos = pygame.mouse.get_pos()
@@ -165,10 +183,56 @@ class UserInterface():
             #         self.moveTankCommand.y = -1
 
     def update(self):
-        self.gameState.update(self.played_card_position)
+        if self.played_card_position == None:
+            pass
+        else:
+            x = self.played_card_position[0]
+            y = self.played_card_position[1]
+            for card, position in self.sprites.items():
+                if x >= position[0] and x <= position[0]+50 and y >= position[1] and y <= position[1] + 50:
+                    print(x, y)
+                    self.gameState.update(card)
+            else:
+                self.gameState.update(None)
 
     def render(self):
         self.window.fill((0, 0, 0))
+        for i,card in enumerate(self.gameState.played_cards):
+            if card != None:
+                if i == 0:
+                    x, y = self.positions[card]
+                    y = 2*(8-y)
+                    x = 2*(x-1)
+                    textureRect = pygame.Rect(x*self.cellSizex, y*self.cellSizey, self.cellSizex, self.cellSizey)
+                    spritePoint = Vector2(10,11).elementwise()*self.cellSize
+                    self.sprites[card] = spritePoint
+                    self.window.blit(self.cardsTexture, spritePoint, textureRect)
+                elif i == 1:
+                    x, y = self.positions[card]
+                    y = 2*(8-y)
+                    x = 2*(x-1)
+                    textureRect = pygame.Rect(x*self.cellSizex, y*self.cellSizey, self.cellSizex, self.cellSizey)
+                    spritePoint = Vector2(9,10).elementwise()*self.cellSize
+                    self.sprites[card] = spritePoint
+                    self.window.blit(self.cardsTexture, spritePoint, textureRect)
+                elif i == 2:
+                    x, y = self.positions[card]
+                    y = 2*(8-y)
+                    x = 2*(x-1)
+                    textureRect = pygame.Rect(x*self.cellSizex, y*self.cellSizey, self.cellSizex, self.cellSizey)
+                    spritePoint = Vector2(10,9).elementwise()*self.cellSize
+                    self.sprites[card] = spritePoint
+                    self.window.blit(self.cardsTexture, spritePoint, textureRect)
+                elif i == 3:
+                    x, y = self.positions[card]
+                    y = 2*(8-y)
+                    x = 2*(x-1)
+                    textureRect = pygame.Rect(x*self.cellSizex, y*self.cellSizey, self.cellSizex, self.cellSizey)
+                    spritePoint = Vector2(11,10).elementwise()*self.cellSize
+                    self.sprites[card] = spritePoint
+                    self.window.blit(self.cardsTexture, spritePoint, textureRect)
+        
+        
         for k,player in enumerate(self.gameState.players):
             if k == 0 and self.gameState.current_player != k:
                 for i, card in enumerate(player):
@@ -178,7 +242,7 @@ class UserInterface():
                     x = 2*(x-1)
                     textureRect = pygame.Rect(x*self.cellSizex, y*self.cellSizey, self.cellSizex, self.cellSizey)
                     spritePoint = Vector2(10-handSize//2+i,19).elementwise()*self.cellSize
-                    self.gameState.sprites[card] = spritePoint
+                    self.sprites[card] = spritePoint
                     self.window.blit(self.cardsTexture, spritePoint, textureRect)
             elif k == 0 and self.gameState.current_player == k:
                 allowedCards = self.gameState.allowedCards()
@@ -192,7 +256,7 @@ class UserInterface():
                         spritePoint = Vector2(10-handSize//2+i,18).elementwise()*self.cellSize
                     else:
                         spritePoint = Vector2(10-handSize//2+i,19).elementwise()*self.cellSize
-                    self.gameState.sprites[card] = spritePoint
+                    self.sprites[card] = spritePoint
                     self.window.blit(self.cardsTexture, spritePoint, textureRect)
             elif k == 1 and self.gameState.current_player != k:
                 for i, card in enumerate(player):
@@ -201,7 +265,7 @@ class UserInterface():
                     x = 2*(x-1)
                     textureRect = pygame.Rect(x*self.cellSizex, y*self.cellSizey, self.cellSizex, self.cellSizey)
                     spritePoint = Vector2(0,10-handSize//2+i).elementwise()*self.cellSize
-                    self.gameState.sprites[card] = spritePoint
+                    self.sprites[card] = spritePoint
                     self.window.blit(self.cardsTexture, spritePoint, textureRect)
             elif k == 1 and self.gameState.current_player == k:
                 allowedCards = self.gameState.allowedCards()
@@ -215,7 +279,7 @@ class UserInterface():
                         spritePoint = Vector2(1,10-handSize//2+i).elementwise()*self.cellSize
                     else:
                         spritePoint = Vector2(0,10-handSize//2+i).elementwise()*self.cellSize
-                    self.gameState.sprites[card] = spritePoint
+                    self.sprites[card] = spritePoint
                     self.window.blit(self.cardsTexture, spritePoint, textureRect)
             elif k == 2 and self.gameState.current_player != k:
                 for i, card in enumerate(player):
@@ -224,7 +288,7 @@ class UserInterface():
                     x = 2*(x-1)
                     textureRect = pygame.Rect(x*self.cellSizex, y*self.cellSizey, self.cellSizex, self.cellSizey)
                     spritePoint = Vector2(10-handSize//2+i,0).elementwise()*self.cellSize
-                    self.gameState.sprites[card] = spritePoint
+                    self.sprites[card] = spritePoint
                     self.window.blit(self.cardsTexture, spritePoint, textureRect)
             elif k == 2 and self.gameState.current_player == k:
                 allowedCards = self.gameState.allowedCards()
@@ -238,7 +302,7 @@ class UserInterface():
                         spritePoint = Vector2(10-handSize//2+i,1).elementwise()*self.cellSize
                     else:
                         spritePoint = Vector2(10-handSize//2+i,0).elementwise()*self.cellSize
-                    self.gameState.sprites[card] = spritePoint
+                    self.sprites[card] = spritePoint
                     self.window.blit(self.cardsTexture, spritePoint, textureRect)
             elif k == 3 and self.gameState.current_player != k:
                 for i, card in enumerate(player):
@@ -247,7 +311,7 @@ class UserInterface():
                     x = 2*(x-1)
                     textureRect = pygame.Rect(x*self.cellSizex, y*self.cellSizey, self.cellSizex, self.cellSizey)
                     spritePoint = Vector2(19,10-handSize//2+i).elementwise()*self.cellSize
-                    self.gameState.sprites[card] = spritePoint
+                    self.sprites[card] = spritePoint
                     self.window.blit(self.cardsTexture, spritePoint, textureRect)
             elif k == 3 and self.gameState.current_player == k:
                 allowedCards = self.gameState.allowedCards()
@@ -261,7 +325,7 @@ class UserInterface():
                         spritePoint = Vector2(18,10-handSize//2+i).elementwise()*self.cellSize
                     else:
                         spritePoint = Vector2(19,10-handSize//2+i).elementwise()*self.cellSize
-                    self.gameState.sprites[card] = spritePoint
+                    self.sprites[card] = spritePoint
                     self.window.blit(self.cardsTexture, spritePoint, textureRect)
 
         pygame.display.update()    
